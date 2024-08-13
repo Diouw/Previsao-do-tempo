@@ -4,7 +4,8 @@ import { Text, View } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
 
-const API_KEY = '7a4120506987904d649e3167a6e49687';
+import {API_KEY} from '../components/api/apiWeather'
+
 
 const Index = () => {
   const [city, setCity] = useState(null);
