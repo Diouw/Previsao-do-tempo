@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, Button, Image } from 'react-native';
+import { StyleSheet, ScrollView, Button, Image, ImageBackground } from 'react-native';
 import { Text, View } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
+
 
 import { API_KEY } from '../components/api/apiWeather';
 
@@ -13,18 +14,25 @@ const Index = () => {
   const [condition, setCondition] = useState(null);
   const [date, setDate] = useState(new Date);
   const [loading, setLoading] = useState(false);
+  const [forecast, setForecast] = useState([]);
+
+  const dia = require('../assets/images/dia.png')
+  const noite = require('../assets/images/noite.png')
 
   const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
+  {/*funcao para coletar os dados da api*/}
   const getLocationAndWeather = async () => {
     setLoading(true);
     try {
+      {/*permissao de localização*/}
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         console.log('Permissão de localização negada');
         return;
       }
 
+      {/*pegar as coordenadas*/}
       let location = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = location.coords;
 
@@ -35,14 +43,22 @@ const Index = () => {
 
       if (reverseGeocode.length > 0) {
         let address = reverseGeocode[0];
-        setCity(address.subregion);
+        if(address.city == null)
+          setCity(address.city);
+        else
+          setCity(address.subregion);
       }
 
+      {/*pegar os dados de hoje*/}
       const weatherResponse = await axios.get(`https://api.weatherbit.io/v2.0/current?lat=${latitude}&lon=${longitude}&key=${API_KEY}&units=M&lang=pt`);
 
       setIcon(weatherResponse.data.data[0].weather.icon);
       setTemperature(weatherResponse.data.data[0].temp);
       setCondition(weatherResponse.data.data[0].weather.description);
+
+      {/*pegar os dados da semana*/}
+      const forecastResponse = await axios.get(`https://api.weatherbit.io/v2.0/forecast/daily?lat=${latitude}&lon=${longitude}&key=${API_KEY}&units=M&lang=pt&days=7`);
+      setForecast(forecastResponse.data.data);
 
       setDate(new Date);
     } catch (error) {
@@ -52,68 +68,71 @@ const Index = () => {
       setLoading(false);
     }
   };
-
+  
   useEffect(() => {
     getLocationAndWeather();
   }, []);
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.city}>{city}</Text>
-        <Text style={styles.date}>{date.getDate().toString() + ' de ' + meses[date.getMonth()] + ' de ' + date.getFullYear().toString()}</Text>
-        <Text style={styles.date}>{date.getHours() + ':' + date.getMinutes()}</Text>
-      </View>
+    <ImageBackground source={dia} style={styles.background}>
+      <ScrollView style={styles.container}>
+        
+        {/*cidade e data*/}
+        <View style={styles.header}>
+          <Text style={styles.city}>{city}</Text>
+          <Text style={styles.date}>{date.getDate().toString() + ' de ' + meses[date.getMonth()] + ' de ' + date.getFullYear().toString()}</Text>
+          <Text style={styles.date}>{date.getHours() + ':' + date.getMinutes().toString()}</Text>
+        </View>
 
-      <View style={styles.currentWeather}>
-        <Image
-          source={{ uri: 'https://www.weatherbit.io/static/img/icons/' + icon + '.png' }}
-          style={styles.weatherIcon}
-        />
-        <Text style={styles.temperature}>{temperature + '°C'}</Text>
-        <Text style={styles.weatherDescription}>{condition}</Text>
-      </View>
-
-      <View style={styles.forecast}>
-        <Text style={styles.forecastTitle}>Previsão para os próximos dias:</Text>
-        <View style={styles.forecastItem}>
-          <Text style={styles.forecastDay}>Terça</Text>
+        {/*Temperatura atual, condicao e icone*/}
+        <View style={styles.currentWeather}>
           <Image
-            source={{ uri: 'https://openweathermap.org/img/wn/03d.png' }}
-            style={styles.forecastIcon}
+            source={{ uri: 'https://www.weatherbit.io/static/img/icons/' + icon + '.png' }}
+            style={styles.weatherIcon}
           />
-          <Text style={styles.forecastTemp}>22°C</Text>
+          <Text style={styles.temperature}>{Math.round(temperature) + '°C'}</Text>
+          <Text style={styles.weatherDescription}>{condition}</Text>
         </View>
-        <View style={styles.forecastItem}>
-          <Text style={styles.forecastDay}>Quarta</Text>
-          <Image
-            source={{ uri: 'https://openweathermap.org/img/wn/04d.png' }}
-            style={styles.forecastIcon}
-          />
-          <Text style={styles.forecastTemp}>20°C</Text>
-        </View>
-        {/* Adicione mais itens de previsão conforme necessário */}
 
-        <View>
-          <Button
-            title={loading ? "Atualizando..." : "Atualizar Dados do Clima"}
-            onPress={getLocationAndWeather}
-          />
+        {/*flatlist para a previsao dos proximos dias*/}
+        <View style={styles.forecast}>
+          <Text style={styles.forecastTitle}>Previsão para os próximos dias:</Text>
+          {forecast.map((day, index) => (
+            <View key={index} style={styles.forecastItem}>
+              <Text style={styles.forecastDay}>{new Date(day.valid_date).toLocaleDateString('pt-BR', { weekday: 'long' })}</Text>
+              <Image
+                source={{ uri: `https://www.weatherbit.io/static/img/icons/${day.weather.icon}.png` }}
+                style={styles.forecastIcon}
+              />
+              <Text style={styles.forecastTemp}>{Math.round(day.temp)}°C</Text>
+            </View>
+          ))}
         </View>
-      </View>
-    </ScrollView>
+
+          <View>
+            <Button
+              title={loading ? "Atualizando..." : "Atualizar Dados do Clima"}
+              onPress={getLocationAndWeather}
+            />
+          </View>
+      </ScrollView>
+    </ImageBackground>
   );
 };
 
 
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    resizeMode: 'cover',
+  },
   container: {
     flex: 1,
-    backgroundColor: 'lightblue',
     padding: 20,
   },
   header: {
+    marginTop:50,
     alignItems: 'center',
     marginBottom: 20,
   },
@@ -150,8 +169,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   forecastItem: {
+    height:80,
+    backgroundColor:'white',
+    borderRadius:10,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'center',
     marginBottom: 10,
   },
