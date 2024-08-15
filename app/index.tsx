@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, ScrollView, Button, Image, ImageBackground } from 'react-native';
+import React,{ useState, useEffect, useRef } from 'react';
+import { StyleSheet, ScrollView, Button, Image, ImageBackground, FlatList, TouchableOpacity, Animated, Easing } from 'react-native';
 import { Text, View } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
@@ -9,6 +9,8 @@ import { API_KEY } from '../components/api/apiWeather';
 
 const Index = () => {
   const [city, setCity] = useState(null);
+  const [rua, setRua] = useState(null);
+  const [numero, setNumero] = useState(null);
   const [temperature, setTemperature] = useState(null);
   const [icon, setIcon] = useState(null);
   const [condition, setCondition] = useState(null);
@@ -17,13 +19,42 @@ const Index = () => {
   const [forecast, setForecast] = useState([]);
 
   const dia = require('../assets/images/dia.png')
+  const dia2 = require('../assets/images/dia2.png')
   const noite = require('../assets/images/noite.png')
 
+  const refreshIcon = require('../assets/images/refresh.png');
+
   const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  const rotation = useRef(new Animated.Value(0)).current;
+
+  const startRotation = () => {
+    rotation.setValue(0);
+    Animated.loop(
+      Animated.timing(rotation, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  };
+
+  const stopRotation = () => {
+    rotation.stopAnimation();
+  };
+
+  const rotateData = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+
 
   {/*funcao para coletar os dados da api*/}
   const getLocationAndWeather = async () => {
     setLoading(true);
+    startRotation();
     try {
       {/*permissao de localização*/}
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -44,10 +75,13 @@ const Index = () => {
       if (reverseGeocode.length > 0) {
         let address = reverseGeocode[0];
         if(address.city == null)
-          setCity(address.city);
-        else
           setCity(address.subregion);
+        else
+          setCity(address.city);
       }
+
+
+      console.log(reverseGeocode);
 
       {/*pegar os dados de hoje*/}
       const weatherResponse = await axios.get(`https://api.weatherbit.io/v2.0/current?lat=${latitude}&lon=${longitude}&key=${API_KEY}&units=M&lang=pt`);
@@ -58,7 +92,16 @@ const Index = () => {
 
       {/*pegar os dados da semana*/}
       const forecastResponse = await axios.get(`https://api.weatherbit.io/v2.0/forecast/daily?lat=${latitude}&lon=${longitude}&key=${API_KEY}&units=M&lang=pt&days=7`);
-      setForecast(forecastResponse.data.data);
+      // Obtém a data atual (apenas a parte do dia)
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+      const tomorrowString = tomorrow.toISOString().split('T')[0];
+
+      // Filtra para mostrar previsões apenas a partir de amanhã
+      const forecastData = forecastResponse.data.data.filter(forecast => forecast.valid_date > tomorrowString);
+
+      setForecast(forecastData);
 
       setDate(new Date);
     } catch (error) {
@@ -66,12 +109,37 @@ const Index = () => {
       console.error(error);
     } finally {
       setLoading(false);
+      stopRotation();
     }
   };
   
   useEffect(() => {
     getLocationAndWeather();
   }, []);
+
+
+  {/*flatlist*/}
+  const renderItem = ({ item }) => (
+    <View style={styles.forecastItem}>
+        <View style={{flex:6}}>
+          <Text style={styles.forecastDay}>
+            {new Date(item.valid_date).toLocaleDateString('pt-BR', { weekday: 'long' })}
+          </Text>
+        </View>
+
+        <View style={{flex:3}}>
+          <Image
+          source={{ uri: `https://www.weatherbit.io/static/img/icons/${item.weather.icon}.png` }}
+          style={styles.forecastIcon}
+          />
+        </View>
+      
+      <View style={{flex:2}}>
+        <Text style={styles.forecastTemp}>{Math.round(item.max_temp)}°C</Text>
+        <Text style={styles.forecastTempMin}>{Math.round(item.min_temp)}°C</Text>
+      </View>
+    </View>
+  );
 
   return (
     <ImageBackground source={dia} style={styles.background}>
@@ -84,7 +152,7 @@ const Index = () => {
           <Text style={styles.date}>{date.getHours() + ':' + date.getMinutes().toString()}</Text>
         </View>
 
-        {/*Temperatura atual, condicao e icone*/}
+        {/*Temperatura atual, e icone*/}
         <View style={styles.currentWeather}>
           <Image
             source={{ uri: 'https://www.weatherbit.io/static/img/icons/' + icon + '.png' }}
@@ -97,24 +165,24 @@ const Index = () => {
         {/*flatlist para a previsao dos proximos dias*/}
         <View style={styles.forecast}>
           <Text style={styles.forecastTitle}>Previsão para os próximos dias:</Text>
-          {forecast.map((day, index) => (
-            <View key={index} style={styles.forecastItem}>
-              <Text style={styles.forecastDay}>{new Date(day.valid_date).toLocaleDateString('pt-BR', { weekday: 'long' })}</Text>
-              <Image
-                source={{ uri: `https://www.weatherbit.io/static/img/icons/${day.weather.icon}.png` }}
-                style={styles.forecastIcon}
-              />
-              <Text style={styles.forecastTemp}>{Math.round(day.temp)}°C</Text>
-            </View>
-          ))}
+          <FlatList
+            data={forecast}
+            renderItem={renderItem}
+            keyExtractor={(item, index) => index.toString()}
+          />
         </View>
 
-          <View>
-            <Button
-              title={loading ? "Atualizando..." : "Atualizar Dados do Clima"}
-              onPress={getLocationAndWeather}
-            />
-          </View>
+        <View style={{marginBottom:50}}>
+          <TouchableOpacity onPress={getLocationAndWeather}>
+              <Animated.Image
+                source={refreshIcon}
+                style={[
+                  styles.refreshIcon,
+                  loading && { transform: [{ rotate: rotateData }] }, // Aplica rotação durante o carregamento
+                ]}
+              />
+            </TouchableOpacity>
+        </View>
       </ScrollView>
     </ImageBackground>
   );
@@ -129,7 +197,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 20,
+    padding: 20
   },
   header: {
     marginTop:50,
@@ -178,7 +246,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   forecastDay: {
+    textAlign:'left',
     fontSize: 18,
+    paddingLeft:20
   },
   forecastIcon: {
     width: 50,
@@ -186,6 +256,12 @@ const styles = StyleSheet.create({
   },
   forecastTemp: {
     fontSize: 18,
+  },
+  refreshIcon: {
+    width: 50,
+    height: 50,
+  },
+  refreshIconLoading: {
   },
 });
 
