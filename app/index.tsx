@@ -9,8 +9,6 @@ import { API_KEY } from '../components/api/apiWeather';
 
 const Index = () => {
   const [city, setCity] = useState(null);
-  const [rua, setRua] = useState(null);
-  const [numero, setNumero] = useState(null);
   const [temperature, setTemperature] = useState(null);
   const [icon, setIcon] = useState(null);
   const [condition, setCondition] = useState(null);
@@ -18,14 +16,14 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [forecast, setForecast] = useState([]);
 
-  const dia = require('../assets/images/dia.png')
-  const dia2 = require('../assets/images/dia2.png')
-  const noite = require('../assets/images/noite.png')
-
-  const refreshIcon = require('../assets/images/refresh.png');
+  const dia = require('../assets/images/dia3.jpg')
+  const noite = require('../assets/images/noite2.jpg')
 
   const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
+
+  //rotação do botão de refresh
+  const refreshIcon = require('../assets/images/refresh.png');
   const rotation = useRef(new Animated.Value(0)).current;
 
   const startRotation = () => {
@@ -88,7 +86,13 @@ const Index = () => {
 
       setIcon(weatherResponse.data.data[0].weather.icon);
       setTemperature(weatherResponse.data.data[0].temp);
-      setCondition(weatherResponse.data.data[0].weather.description);
+      if(weatherResponse.data.data[0].weather.description == 'Nuvens quebradas'){
+        setCondition('Céu nublado');
+      }
+      else{
+        setCondition(weatherResponse.data.data[0].weather.description);
+      }
+      
 
       {/*pegar os dados da semana*/}
       const forecastResponse = await axios.get(`https://api.weatherbit.io/v2.0/forecast/daily?lat=${latitude}&lon=${longitude}&key=${API_KEY}&units=M&lang=pt&days=7`);
@@ -118,7 +122,7 @@ const Index = () => {
   }, []);
 
 
-  {/*flatlist*/}
+  {/*flatlist das previsões*/}
   const renderItem = ({ item }) => (
     <View style={styles.forecastItem}>
         <View style={{flex:6}}>
@@ -143,52 +147,56 @@ const Index = () => {
 
   return (
     <ImageBackground source={dia} style={styles.background}>
-      <ScrollView style={styles.container}>
-        
-        {/*cidade e data*/}
-        <View style={styles.header}>
-          <Text style={styles.city}>{city}</Text>
-          <Text style={styles.date}>{date.getDate().toString() + ' de ' + meses[date.getMonth()] + ' de ' + date.getFullYear().toString()}</Text>
-          <Text style={styles.date}>{date.getHours() + ':' + date.getMinutes().toString()}</Text>
-        </View>
+      <View style={styles.container}>
+        <FlatList
+        ListHeaderComponent={
+          <View>
+            {/*cabeçalho com cidade, data e horario*/}
+            <View style={styles.header}>
+              <Text style={styles.city}>{city}</Text>
+              <Text style={styles.date}>{date.getDate().toString() + ' de ' + meses[date.getMonth()] + ' de ' + date.getFullYear().toString()}</Text>
+              <Text style={styles.date}>{date.getHours() + ':' + date.getMinutes().toString()}</Text>
+            </View>
 
-        {/*Temperatura atual, e icone*/}
-        <View style={styles.currentWeather}>
-          <Image
-            source={{ uri: 'https://www.weatherbit.io/static/img/icons/' + icon + '.png' }}
-            style={styles.weatherIcon}
-          />
-          <Text style={styles.temperature}>{Math.round(temperature) + '°C'}</Text>
-          <Text style={styles.weatherDescription}>{condition}</Text>
-        </View>
+            {/*icone, temperatura e condição atual*/}
+            <View style={styles.currentWeather}>
+              <Image
+                source={{ uri: 'https://www.weatherbit.io/static/img/icons/' + icon + '.png' }}
+                style={styles.weatherIcon}
+              />
+              <Text style={styles.temperature}>{Math.round(temperature) + '°C'}</Text>
+              <Text style={styles.weatherDescription}>{condition}</Text>
+            </View>
 
-        {/*flatlist para a previsao dos proximos dias*/}
-        <View style={styles.forecast}>
-          <Text style={styles.forecastTitle}>Previsão para os próximos dias:</Text>
-          <FlatList
-            data={forecast}
-            renderItem={renderItem}
-            keyExtractor={(item, index) => index.toString()}
-          />
-        </View>
 
-        <View style={{marginBottom:50}}>
-          <TouchableOpacity onPress={getLocationAndWeather}>
+            {/*previsão dos proximos dias*/}
+            <Text style={styles.forecastTitle}>Previsão para os próximos dias:</Text>
+          </View>
+        }
+        data={forecast}
+        renderItem={renderItem}
+        keyExtractor={(item, index) => index.toString()}
+        contentContainerStyle={{ paddingBottom: 50 }}
+        ListFooterComponent={
+          <View style={{ marginBottom: 50, alignItems: 'center' }}>
+            <TouchableOpacity onPress={getLocationAndWeather}>
               <Animated.Image
                 source={refreshIcon}
                 style={[
                   styles.refreshIcon,
-                  loading && { transform: [{ rotate: rotateData }] }, // Aplica rotação durante o carregamento
+                  loading && { transform: [{ rotate: rotateData }] },
                 ]}
               />
             </TouchableOpacity>
-        </View>
-      </ScrollView>
+          </View>
+        
+        }
+        
+        />
+      </View>
     </ImageBackground>
   );
 };
-
-
 
 const styles = StyleSheet.create({
   background: {
@@ -197,7 +205,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    padding: 20
+    padding: 20,
   },
   header: {
     marginTop:50,
